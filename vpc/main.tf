@@ -118,14 +118,14 @@ resource "aws_network_acl" "main_nacl" {
     to_port    = 8080
   }
 
- # Ingress rule for ICMP (PING)
+# ICMP (PING) rule for Network ACL
 ingress {
-  protocol   = "1"   # ICMP
+  protocol   = "1"    # ICMP
   rule_no    = 120
   action     = "allow"
   cidr_block = "0.0.0.0/0"
-  from_port  = 8     # ICMP type for echo request (Ping)
-  to_port    = -1
+  from_port  = 8      # Type 8 for ICMP echo request (PING)
+  to_port    = 0      # Code 0 for ICMP echo request
 }
 
 
