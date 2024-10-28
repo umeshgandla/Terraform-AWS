@@ -128,7 +128,6 @@ resource "aws_route" "other_vpc_to_main" {
   vpc_peering_connection_id = aws_vpc_peering_connection.vpc_peering.id
 }
 
-# Network ACL for the main VPC to allow SSH, HTTP 8080, and ICMP (Ping)
 resource "aws_network_acl" "main_acl" {
   vpc_id = aws_vpc.main_vpc.id
   tags = {
@@ -137,7 +136,7 @@ resource "aws_network_acl" "main_acl" {
 
   # Inbound rules
   ingress {
-    protocol    = "6"  # TCP
+    protocol    = "6"  # TCP for SSH
     rule_no     = 100
     action      = "allow"
     cidr_block  = "0.0.0.0/0"
@@ -145,7 +144,7 @@ resource "aws_network_acl" "main_acl" {
     to_port     = 22
   }
   ingress {
-    protocol    = "6"  # TCP
+    protocol    = "6"  # TCP for HTTP 8080
     rule_no     = 110
     action      = "allow"
     cidr_block  = "0.0.0.0/0"
@@ -153,17 +152,16 @@ resource "aws_network_acl" "main_acl" {
     to_port     = 8080
   }
   ingress {
-    protocol    = "1"  # ICMP
+    protocol    = "1"  # ICMP for ping
     rule_no     = 120
     action      = "allow"
     cidr_block  = "0.0.0.0/0"
-    from_port   = -1
-    to_port     = -1
+    # ICMP does not need from_port or to_port for Network ACLs
   }
 
   # Outbound rules
   egress {
-    protocol    = "-1"
+    protocol    = "-1"  # All protocols
     rule_no     = 100
     action      = "allow"
     cidr_block  = "0.0.0.0/0"
