@@ -171,20 +171,3 @@ resource "aws_network_acl" "main_acl" {
     to_port     = 0
   }
 }
-
-# Enable GuardDuty
-resource "aws_guardduty_detector" "guardduty" {
-  enable = true
-}
-
-resource "aws_guardduty_organization_admin_account" "admin_account" {
-  admin_account_id = <your_admin_account_id>  # Replace with the actual account ID
-}
-
-# Enable specific GuardDuty features
-resource "aws_guardduty_organization_configuration" "config" {
-  detector_id             = aws_guardduty_detector.guardduty.id
-  auto_enable             = true
-  enable_s3_logs          = true
-  enable_lambda_network_logs = true
-}
