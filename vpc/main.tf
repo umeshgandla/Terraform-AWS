@@ -1,69 +1,68 @@
-# VPC
+# Main VPC
 resource "aws_vpc" "main_vpc" {
   cidr_block       = var.vpc_cidr
-  enable_dns_support = true
   enable_dns_hostnames = true
-
   tags = {
-    Name = "Main-VPC"
+    Name = "MainVPC"
   }
 }
 
-# Subnet
+# Subnet in Main VPC
 resource "aws_subnet" "main_subnet" {
-  vpc_id                  = aws_vpc.main_vpc.id
-  cidr_block              = var.subnet_cidr
-  availability_zone       = "us-east-2a"  # Change to the appropriate AZ
+  vpc_id            = aws_vpc.main_vpc.id
+  cidr_block        = var.subnet_cidr
+  availability_zone = "${var.region}a"
   map_public_ip_on_launch = true
-
   tags = {
-    Name = "Main-Subnet"
+    Name = "MainSubnet"
   }
 }
 
-# Internet Gateway
+# Internet Gateway for Main VPC
 resource "aws_internet_gateway" "main_igw" {
   vpc_id = aws_vpc.main_vpc.id
-
   tags = {
-    Name = "Main-IGW"
+    Name = "MainIGW"
   }
 }
 
-# Route Table
-resource "aws_route_table" "main_route_table" {
+# Route Table for Main VPC
+resource "aws_route_table" "main_rt" {
   vpc_id = aws_vpc.main_vpc.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main_igw.id
-  }
-
   tags = {
-    Name = "Main-Route-Table"
+    Name = "MainRouteTable"
   }
 }
 
-# Route Table Association
-resource "aws_route_table_association" "subnet_association" {
-  subnet_id      = aws_subnet.main_subnet.id
-  route_table_id = aws_route_table.main_route_table.id
+# Route for Internet Gateway
+resource "aws_route" "main_route" {
+  route_table_id         = aws_route_table.main_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.main_igw.id
 }
 
-# Security Group
+# Associate Route Table with Main Subnet
+resource "aws_route_table_association" "main_subnet_association" {
+  subnet_id      = aws_subnet.main_subnet.id
+  route_table_id = aws_route_table.main_rt.id
+}
+
+# Security Group for Main VPC
 resource "aws_security_group" "main_sg" {
   vpc_id = aws_vpc.main_vpc.id
+  tags = {
+    Name = "MainSecurityGroup"
+  }
 
+  # Inbound rules
   ingress {
-    description = "Allow PING"
-    from_port   = -1
-    to_port     = -1
+    from_port   = 0
+    to_port     = 0
     protocol    = "icmp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "Allow SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -71,7 +70,6 @@ resource "aws_security_group" "main_sg" {
   }
 
   ingress {
-    description = "Allow HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -79,33 +77,32 @@ resource "aws_security_group" "main_sg" {
   }
 
   ingress {
-    description = "Allow App HTTP"
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Outbound rules
   egress {
-    description = "Allow outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "Main-SG"
-  }
 }
 
-# Network ACL
-resource "aws_network_acl" "main_acl" {
+# NACL for Main VPC
+resource "aws_network_acl" "main_nacl" {
   vpc_id = aws_vpc.main_vpc.id
+  tags = {
+    Name = "MainNACL"
+  }
 
+  # Inbound Rules
   ingress {
-    rule_no    = 100
     protocol   = "6" # TCP
+    rule_no    = 100
     action     = "allow"
     cidr_block = "0.0.0.0/0"
     from_port  = 22
@@ -113,8 +110,8 @@ resource "aws_network_acl" "main_acl" {
   }
 
   ingress {
-    rule_no    = 110
     protocol   = "6" # TCP
+    rule_no    = 110
     action     = "allow"
     cidr_block = "0.0.0.0/0"
     from_port  = 8080
@@ -122,35 +119,76 @@ resource "aws_network_acl" "main_acl" {
   }
 
   ingress {
+    protocol   = "1" # ICMP
     rule_no    = 120
-    protocol   = "1" # ICMP for ping
     action     = "allow"
     cidr_block = "0.0.0.0/0"
+    from_port  = -1
+    to_port    = -1
   }
 
+  # Outbound Rules
   egress {
+    protocol   = "-1"
     rule_no    = 100
-    protocol   = "-1" # All protocols
     action     = "allow"
     cidr_block = "0.0.0.0/0"
     from_port  = 0
     to_port    = 0
   }
+}
 
+# "Other" VPC for Peering
+resource "aws_vpc" "other_vpc" {
+  cidr_block = var.other_vpc_cidr
   tags = {
-    Name = "Main-NACL"
+    Name = "OtherVPC"
   }
 }
 
-# VPC Peering (between main VPC and other VPC)
-resource "aws_vpc_peering_connection" "peer" {
+# Private Subnet in Other VPC
+resource "aws_subnet" "other_subnet" {
+  vpc_id     = aws_vpc.other_vpc.id
+  cidr_block = var.other_subnet_cidr
+  tags = {
+    Name = "OtherSubnet"
+  }
+}
+
+# Route Table for Other VPC
+resource "aws_route_table" "other_rt" {
+  vpc_id = aws_vpc.other_vpc.id
+  tags = {
+    Name = "OtherRouteTable"
+  }
+}
+
+# Associate Route Table with Other Subnet
+resource "aws_route_table_association" "other_subnet_association" {
+  subnet_id      = aws_subnet.other_subnet.id
+  route_table_id = aws_route_table.other_rt.id
+}
+
+# VPC Peering Connection
+resource "aws_vpc_peering_connection" "peer_connection" {
   vpc_id        = aws_vpc.main_vpc.id
   peer_vpc_id   = aws_vpc.other_vpc.id
-  auto_accept   = true
-
+  peer_region   = var.region
   tags = {
     Name = "Main-Other-VPC-Peering"
   }
 }
 
+# Route in Main VPC for Peering
+resource "aws_route" "main_to_other_route" {
+  route_table_id         = aws_route_table.main_rt.id
+  destination_cidr_block = var.other_vpc_cidr
+  vpc_peering_connection_id = aws_vpc_peering_connection.peer_connection.id
+}
 
+# Route in Other VPC for Peering
+resource "aws_route" "other_to_main_route" {
+  route_table_id         = aws_route_table.other_rt.id
+  destination_cidr_block = var.vpc_cidr
+  vpc_peering_connection_id = aws_vpc_peering_connection.peer_connection.id
+}
